@@ -8,7 +8,35 @@ import torch.nn.functional as F
 
 class SpectralNormLinear(nn.Module):
     """
-    Perform Spectral Normalization using power iteration
+    A Linear layer constrained by Spectral Normalization.
+
+    This layer enforces a Lipschitz constant on the linear transformation by 
+    rescaling the weight matrix by its largest singular value (spectral norm).
+    The spectral norm is approximated efficiently using the Power Iteration method.
+
+    Parameters
+    ----------
+    in_features : int
+        Size of each input sample.
+    out_features : int
+        Size of each output sample.
+    lipschitz_const : float, optional
+        The target Lipschitz constant (scaling factor) for the layer.
+        Default is 1.0.
+    nb_iterations : int, optional
+        The number of power iterations to perform per forward pass to estimate 
+        the singular value. Default is 1.
+
+    Attributes
+    ----------
+    weight : torch.nn.Parameter
+        The learnable weights of the module of shape `(out_features, in_features)`.
+    bias : torch.nn.Parameter
+        The learnable bias of the module of shape `(out_features)`.
+    u : torch.Tensor (Buffer)
+        The left singular vector approximation (persistence buffer).
+    v : torch.Tensor (Buffer)
+        The right singular vector approximation (persistence buffer).
     """
     def __init__(self,
                  in_features,
@@ -27,7 +55,22 @@ class SpectralNormLinear(nn.Module):
         self.register_buffer('u', torch.randn(out_features))
 
     def _power_iteration(self, n_iterations=None):
-        """Compute largest singular value using power iteration"""
+        """
+        Approximates the largest singular value sigma using Power Iteration.
+
+        Updates the internal buffers `u` and `v` to approximate the principal 
+        singular vectors of the weight matrix.
+
+        Parameters
+        ----------
+        n_iterations : int, optional
+            Number of iterations to run. If None, uses `self.nb_iterations`.
+
+        Returns
+        -------
+        torch.Tensor
+            The approximated spectral norm (largest singular value) of the weights.
+        """
         if n_iterations is None:
             n_iterations = self.nb_iterations
         
@@ -50,7 +93,19 @@ class SpectralNormLinear(nn.Module):
         return sigma
     
     def forward(self, x):
-        """forward pass"""
+        """
+        Performs the forward pass of the SpectralNormLinear layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape `(batch_size, in_features)`.
+
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape `(batch_size, out_features)`.
+        """
         if self.training:
             sigma = self._power_iteration(n_iterations=None)
         else:

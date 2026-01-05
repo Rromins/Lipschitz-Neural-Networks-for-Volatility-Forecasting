@@ -8,17 +8,34 @@ import torch.nn as nn
 
 class FeedforwardNN(nn.Module):
     """
-    A simple feedforward neural network for regression tasks.
+    A simple feedforward neural network (MLP) designed for regression tasks.
+
+    This network consists of three fully connected (linear) layers with ReLU 
+    activations in between. It reduces the input dimensionality progressively 
+    down to a single scalar output.
 
     Architecture
     ------------
-        Input (in_features)
-        Linear(in_features to 64)
-            ReLU
-        Linear(64 to 32)
-            ReLU
-        Linear(32 to 1)
-        Output (predicted value)
+    1. Input Layer:  (Batch_Size, in_features)
+    2. Hidden 1:     Linear -> (Batch_Size, 64) + ReLU
+    3. Hidden 2:     Linear -> (Batch_Size, 32) + ReLU
+    4. Output Layer: Linear -> (Batch_Size, 1)
+
+    Parameters
+    ----------
+    in_features : int
+        The number of input features (dimensionality of the input vector).
+
+    Attributes
+    ----------
+    layer1 : nn.Linear
+        First dense layer (Input -> 64).
+    layer2 : nn.Linear
+        Second dense layer (64 -> 32).
+    layer3 : nn.Linear
+        Output dense layer (32 -> 1).
+    relu : nn.ReLU
+        Rectified Linear Unit activation function.
     """
     def __init__(self, in_features):
         super(FeedforwardNN, self).__init__()
@@ -29,7 +46,18 @@ class FeedforwardNN(nn.Module):
 
     def forward(self, x):
         """
-        Define the forward pass of the network
+        Performs the forward pass of the network.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape `(batch_size, in_features)`.
+
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape `(batch_size, 1)`.
+            Contains the predicted regression values.
         """
         value = self.layer1(x)
         value = self.relu(value)
@@ -41,23 +69,40 @@ class FeedforwardNN(nn.Module):
 
 class LipschitzNN(nn.Module):
     """
-        Lipschitz-constrained MLP with GroupSort activation.
-        
-        Parameters
-        ----------
-        input_dim: int
-            Input dimension
-        hidden_dims: list of int
-            Hidden layer dimensions (e.g., [64, 64])
-        output_dim: int
-            Output dimension
-        lipschitz_const: float
-            Lipschitz constant for the entire network
-        nb_iterations: int
-            Number of iterations for the power iteration algorithm
-        group_size: int
-            Group size for GroupSort (typically 2)
-        """
+    A Lipschitz-constrained Multi-Layer Perceptron (MLP).
+
+    This network enforces a global Lipschitz constant on the mapping by combining 
+    Spectrally Normalized Linear layers with GroupSort activation functions. 
+
+    Architecture
+    ------------
+    The network is constructed dynamically based on `hidden_dims`:
+    Input -> [SpectralLinear -> GroupSort] x N -> SpectralLinear -> Output
+
+    Parameters
+    ----------
+    input_dim : int
+        Dimensionality of the input features.
+    hidden_dim : list of int
+        A list of integers defining the size of each hidden layer.
+        Example: `[64, 64]` creates two hidden layers with 64 neurons each.
+    output_dim : int
+        Dimensionality of the output (e.g., 1 for regression).
+    lipschitz_const : float, optional
+        The target Lipschitz constant for each linear layer, by default 1.0.
+        The global Lipschitz constant is bounded by the product of layer constants.
+    nb_iterations : int, optional
+        Number of power iterations used to estimate the spectral norm 
+        in `SpectralNormLinear` layers, by default 1.
+    group_size : int, optional
+        The grouping size for the `GroupSort` activation, by default 2.
+        GroupSort is a gradient-norm-preserving activation function.
+
+    Attributes
+    ----------
+    network : nn.Sequential
+        The container holding the sequence of layers.
+    """
     def __init__(self,
                  input_dim,
                  hidden_dim,
@@ -82,5 +127,17 @@ class LipschitzNN(nn.Module):
         self.network = nn.Sequential(*layers)
 
     def forward(self, x):
-        """Forward pass"""
+        """
+        Performs the forward pass of the Lipschitz network.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape `(batch_size, input_dim)`.
+
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape `(batch_size, output_dim)`.
+        """
         return self.network(x)
