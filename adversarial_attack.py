@@ -123,12 +123,16 @@ def evaluate_robustness(model: nn.Module,
         for data, target in valid_loader:
             data, target = data.to(device), target.to(device)
 
+            model.train()
+
             # generate adversarial examples
             perturbed_data, perturbation = fgsm_attack(model=model,
                                                        criterion=criterion,
                                                        data=data,
                                                        target=target,
                                                        epsilon=epsilon)
+
+            model.eval()
             
             # evaluate on perturbed data
             with torch.no_grad():
